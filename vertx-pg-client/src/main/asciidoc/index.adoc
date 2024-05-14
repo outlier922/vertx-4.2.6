@@ -1,0 +1,544 @@
+= Reactive PostgreSQL Client
+:PREPARED_PARAMS: `$1`, `$2`, etc…​
+
+The Reactive PostgreSQL Client is a client for PostgreSQL with a straightforward API focusing on
+scalability and low overhead.
+
+The client is reactive and non blocking, allowing to handle many database connections with a single thread.
+
+* Event driven
+* Lightweight
+* Built-in connection pooling
+* Prepared queries caching
+* Publish / subscribe using PostgreSQL `NOTIFY/LISTEN`
+* Batch and cursor
+* Row streaming
+* Command pipeling
+* RxJava API
+* Direct memory to object without unnecessary copies
+* Java 8 Date and Time
+* SSL/TLS
+* Unix domain socket
+* HTTP/1.x CONNECT, SOCKS4a or SOCKS5 proxy support
+
+== Usage
+
+To use the Reactive PostgreSQL Client add the following dependency to the _dependencies_ section of your build descriptor:
+
+* Maven (in your `pom.xml`):
+
+[source,xml]
+----
+<dependency>
+  <groupId>${maven.groupId}</groupId>
+  <artifactId>${maven.artifactId}</artifactId>
+  <version>${maven.version}</version>
+</dependency>
+----
+* Gradle (in your `build.gradle` file):
+
+[source,groovy]
+----
+dependencies {
+  compile '${maven.groupId}:${maven.artifactId}:${maven.version}'
+}
+----
+
+== Getting started
+
+Here is the simplest way to connect, query and disconnect
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#gettingStarted()}
+----
+
+== Connecting to PostgreSQL
+
+Most of the time you will use a pool to connect to PostgreSQL:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#connecting01}
+----
+
+The pooled client uses a connection pool and any operation will borrow a connection from the pool
+to execute the operation and release it to the pool.
+
+If you are running with Vert.x you can pass it your Vertx instance:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#connecting02}
+----
+
+You need to release the client when you don't need it anymore:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#connecting03}
+----
+
+When you need to execute several operations on the same connection, you need to acquire a
+{@link io.vertx.pgclient.PgConnection connection} from a pool.
+
+You can easily get one from the pool:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#connecting04}
+----
+
+Once you are done with the connection you must close it to release it to the pool, so it can be reused.
+
+== Pool versus pooled client
+
+The {@link io.vertx.pgclient.PgPool} allows you to create a pool or a pooled client
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#poolVersusPooledClient}
+----
+
+- pool operations are not pipelined, only connection client are pipelined
+- pooled client operations are pipelined
+
+== Pool sharing
+
+include::pool_sharing.adoc[]
+
+== Unix domain sockets
+
+Sometimes you want to improve performance via Unix domain socket connection, we achieve this with Vert.x Native transports.
+
+Make sure you have added the required `netty-transport-native` dependency in your classpath and enabled the Unix domain socket option.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#unixDomainSockets}
+----
+
+More information can be found in the https://vertx.io/docs/vertx-core/java/#_native_transports[Vert.x documentation].
+
+== Connect retries
+
+You can configure the client to retry when a connection fails to be established.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#reconnectAttempts}
+----
+
+== Configuration
+
+There are several alternatives for you to configure the client.
+
+=== data object
+
+A simple way to configure the client is to specify a `PgConnectOptions` data object.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#configureFromDataObject(io.vertx.core.Vertx)}
+----
+
+You can also configure the generic properties with the `setProperties` or `addProperty` methods. Note `setProperties` will override the default client properties.
+
+For example, you can set a default schema for the connection with adding a `search_path` property.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#configureDefaultSchema()}
+----
+
+More information about the available properties can be found in the https://www.postgresql.org/docs/current/runtime-config-client.html[PostgreSQL Manuals].
+
+=== connection uri
+
+Apart from configuring with a `PgConnectOptions` data object, We also provide you an alternative way to connect when you want to configure with a connection URI:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#configureFromUri(io.vertx.core.Vertx)}
+----
+
+More information about connection string formats can be found in the https://www.postgresql.org/docs/9.6/static/libpq-connect.html#LIBPQ-CONNSTRING[PostgreSQL Manuals].
+
+Currently the client supports the following parameter key words in connection uri
+
+* host
+* hostaddr
+* port
+* user
+* password
+* dbname
+* sslmode
+* properties including(application_name, fallback_application_name, search_path)
+
+NOTE: configuring properties in connection URI will override the default properties.
+
+=== environment variables
+
+You can also use environment variables to set default connection setting values, this is useful
+when you want to avoid hard-coding database connection information. You can refer to the https://www.postgresql.org/docs/9.6/static/libpq-envars.html[official documentation]
+for more details. The following parameters are supported:
+
+* `PGHOST`
+* `PGHOSTADDR`
+* `PGPORT`
+* `PGDATABASE`
+* `PGUSER`
+* `PGPASSWORD`
+* `PGSSLMODE`
+
+If you don't specify a data object or a connection URI string to connect, environment variables will take precedence over them.
+
+[source,$lang]
+----
+$ PGUSER=user \
+  PGHOST=the-host \
+  PGPASSWORD=secret \
+  PGDATABASE=the-db \
+  PGPORT=5432 \
+  PGSSLMODE=DISABLE
+----
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#configureFromEnv(io.vertx.core.Vertx)}
+----
+
+=== SASL SCRAM-SHA-256 authentication mechanism.
+
+To use the sasl SCRAM-SHA-256 authentication add the following dependency to the _dependencies_ section of your build descriptor:
+
+* Maven (in your `pom.xml`):
+
+[source,xml]
+----
+<dependency>
+  <groupId>com.ongres.scram</groupId>
+  <artifactId>client</artifactId>
+  <version>2.1</version>
+</dependency>
+----
+* Gradle (in your `build.gradle` file):
+
+[source,groovy]
+----
+dependencies {
+  compile 'com.ongres.scram:client:2.1'
+}
+----
+
+NOTE: SCRAM-SHA-256-PLUS (added in Postgresql 11) is not supported.
+
+
+include::queries.adoc[leveloffset=1]
+
+== Returning clauses
+
+You can fetch generated keys with a 'RETURNING' clause in your query:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#insertReturning(io.vertx.sqlclient.SqlClient)}
+----
+
+This works with any SQL as long as there is a `RETURNING` clause:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#deleteReturning(io.vertx.sqlclient.SqlClient)}
+----
+
+A batch query with a `RETURNING` clause creates a {@link io.vertx.sqlclient.RowSet}
+containing a single for each element of the batch:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#batchReturning(io.vertx.sqlclient.SqlClient)}
+----
+
+include::connections.adoc[]
+
+include::transactions.adoc[]
+
+include::cursor.adoc[]
+
+NOTE: PostreSQL destroys cursors at the end of a transaction, so the cursor API shall be used
+within a transaction, otherwise you will likely get the `34000` PostgreSQL error.
+
+== Tracing queries
+
+include::tracing.adoc[]
+
+== PostgreSQL type mapping
+
+Currently the client supports the following PostgreSQL types
+
+* BOOLEAN (`java.lang.Boolean`)
+* INT2 (`java.lang.Short`)
+* INT4 (`java.lang.Integer`)
+* INT8 (`java.lang.Long`)
+* FLOAT4 (`java.lang.Float`)
+* FLOAT8 (`java.lang.Double`)
+* CHAR (`java.lang.String`)
+* VARCHAR (`java.lang.String`)
+* TEXT (`java.lang.String`)
+* ENUM (`java.lang.String`)
+* NAME (`java.lang.String`)
+* SERIAL2 (`java.lang.Short`)
+* SERIAL4 (`java.lang.Integer`)
+* SERIAL8 (`java.lang.Long`)
+* NUMERIC (`io.vertx.sqlclient.data.Numeric`)
+* UUID (`java.util.UUID`)
+* DATE (`java.time.LocalDate`)
+* TIME (`java.time.LocalTime`)
+* TIMETZ (`java.time.OffsetTime`)
+* TIMESTAMP (`java.time.LocalDateTime`)
+* TIMESTAMPTZ (`java.time.OffsetDateTime`)
+* INTERVAL (`io.vertx.pgclient.data.Interval`)
+* BYTEA (`io.vertx.core.buffer.Buffer`)
+* JSON (`io.vertx.core.json.JsonObject`, `io.vertx.core.json.JsonArray`, `Number`, `Boolean`, `String`, `io.vertx.sqlclient.Tuple#JSON_NULL`)
+* JSONB (`io.vertx.core.json.JsonObject`, `io.vertx.core.json.JsonArray`, `Number`, `Boolean`, `String`, `io.vertx.sqlclient.Tuple#JSON_NULL`)
+* POINT (`io.vertx.pgclient.data.Point`)
+* LINE (`io.vertx.pgclient.data.Line`)
+* LSEG (`io.vertx.pgclient.data.LineSegment`)
+* BOX (`io.vertx.pgclient.data.Box`)
+* PATH (`io.vertx.pgclient.data.Path`)
+* POLYGON (`io.vertx.pgclient.data.Polygon`)
+* CIRCLE (`io.vertx.pgclient.data.Circle`)
+* TSVECTOR (`java.lang.String`)
+* TSQUERY (`java.lang.String`)
+* INET (`io.vertx.pgclient.data.Inet`)
+* MONEY (`io.vertx.pgclient.data.Money`)
+
+Tuple decoding uses the above types when storing values, it also performs on the flu conversion the actual value when possible:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#typeMapping01}
+----
+
+Tuple encoding uses the above type mapping for encoding, unless the type is numeric in which case `java.lang.Number` is used instead:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#typeMapping02}
+----
+
+Arrays of these types are supported.
+
+=== Handling JSON
+
+PostgreSQL `JSON` and `JSONB` types are represented by the following Java types:
+
+- `String`
+- `Number`
+- `Boolean`
+- `io.vertx.core.json.JsonObject`
+- `io.vertx.core.json.JsonArray`
+- `io.vertx.sqlclient.Tuple#JSON_NULL` for representing the JSON null literal
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#jsonExample()}
+----
+
+=== Handling NUMERIC
+
+The {@link io.vertx.sqlclient.data.Numeric} Java type is used to represent the PostgreSQL `NUMERIC` type.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#numericExample}
+----
+
+== Handling arrays
+
+Arrays are available on {@link io.vertx.sqlclient.Tuple} and {@link io.vertx.sqlclient.Row}:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#arrayExample}
+----
+
+== Handling Date/Time infinity
+
+PostgreSQL defines special values to represent infinity.
+
+The max/min constants of the corresponding type represents https://www.postgresql.org/docs/9.0/datatype-datetime.html[special value].
+
+- `OffsetDateTime.MAX`/OffsetDateTime.MIN`
+- `LocalDateTime.MAX`/LocalDateTime.MIN`
+- `LocalDate.MAX`/LocalDate.MIN`
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#infinitySpecialValue}
+----
+
+== Handling custom types
+
+Strings are used to represent custom types, both sent to and returned from Postgres.
+
+You can read from PostgreSQL and get the custom type as a string
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#customType01Example}
+----
+
+You can also write to PostgreSQL by providing a string
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#customType02Example}
+----
+
+== Handling text search
+
+Text search is handling using java `String`
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#tsQuery01Example}
+----
+
+`tsvector` and `tsquery` can be fetched from db using java `String`
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#tsQuery02Example}
+----
+
+== Handling enumerated types
+
+PostgreSQL https://www.postgresql.org/docs/9.1/datatype-enum.html[enumerated types] are mapped to java strings.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#enumeratedType01Example}
+----
+
+== Using Java enum types
+
+You can map Java https://docs.oracle.com/javase/tutorial/java/javaOO/enum.html[enum types] to these column
+types:
+
+- Strings (VARCHAR, TEXT)
+- PosgreSQL enumerated types
+- Numbers (INT2, INT4, INT8)
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#enumType01Example}
+----
+
+String and PostgreSQL enumerated types are matched with the Java enum's name returned by the `name()` method.
+
+Numbers types are matched with the Java enum's ordinal returned by the `ordinal()` method.
+
+== Collector queries
+
+You can use Java collectors with the query API:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#collector01Example}
+----
+
+The collector processing must not keep a reference on the {@link io.vertx.sqlclient.Row} as
+there is a single row used for processing the entire set.
+
+The Java `Collectors` provides many interesting predefined collectors, for example you can
+create easily create a string directly from the row set:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#collector02Example}
+----
+
+== Pub/sub
+
+PostgreSQL supports pub/sub communication channels.
+
+You can set a {@link io.vertx.pgclient.PgConnection#notificationHandler(io.vertx.core.Handler)} to receive
+PostgreSQL notifications:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#pubsub01(io.vertx.pgclient.PgConnection)}
+----
+
+The {@link io.vertx.pgclient.pubsub.PgSubscriber} is a channel manager managing a single connection that
+provides per channel subscription:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#pubsub02(io.vertx.core.Vertx)}
+----
+
+The channel name that is given to the channel method will be the exact name of the channel as held by PostgreSQL for sending
+notifications.  Note this is different than the representation of the channel name in SQL, and
+internally {@link io.vertx.pgclient.pubsub.PgSubscriber} will prepare the submitted channel name as a quoted identifier:
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#pubsub03(io.vertx.core.Vertx)}
+----
+You can provide a reconnect policy as a function that takes the number of `retries` as argument and returns an `amountOfTime`
+value:
+
+* when `amountOfTime < 0`: the subscriber is closed and there is no retry
+* when `amountOfTime = 0`: the subscriber retries to connect immediately
+* when `amountOfTime > 0`: the subscriber retries after `amountOfTime` milliseconds
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#pubsub04(io.vertx.core.Vertx)}
+----
+
+The default policy is to not reconnect.
+
+== Cancelling Request
+
+PostgreSQL supports cancellation of requests in progress. You can cancel inflight requests using {@link io.vertx.pgclient.PgConnection#cancelRequest}. Cancelling a request opens a new connection to the server and cancels the request and then close the connection.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#cancelRequest(io.vertx.pgclient.PgConnection)}
+----
+
+> The cancellation signal might or might not have any effect — for example, if it arrives after the backend has finished processing the query, then it will have no effect. If the cancellation is effective, it results in the current command being terminated early with an error message.
+
+More information can be found in the https://www.postgresql.org/docs/11/protocol-flow.html#id-1.10.5.7.9[official documentation].
+
+== Using SSL/TLS
+
+To configure the client to use SSL connection, you can configure the {@link io.vertx.pgclient.PgConnectOptions}
+like a Vert.x `NetClient`.
+All https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-PROTECTION[SSL modes] are supported and you are able to configure `sslmode`. The client is in `DISABLE` SSL mode by default.
+`ssl` parameter is kept as a mere shortcut for setting `sslmode`. `setSsl(true)` is equivalent to `setSslMode(VERIFY_CA)` and `setSsl(false)` is equivalent to `setSslMode(DISABLE)`.
+
+[source,$lang]
+----
+{@link examples.PgClientExamples#ex10}
+----
+
+More information can be found in the http://vertx.io/docs/vertx-core/java/#ssl[Vert.x documentation].
+
+== Using a proxy
+
+You can also configure the client to use an HTTP/1.x CONNECT, SOCKS4a or SOCKS5 proxy.
+
+More information can be found in the http://vertx.io/docs/vertx-core/java/#_using_a_proxy_for_client_connections[Vert.x documentation].
+
+== Advanced pool configuration
+
+include::pool_config.adoc[]
+
+ifeval::["$lang" == "java"]
+include::override/rxjava3.adoc[]
+endif::[]

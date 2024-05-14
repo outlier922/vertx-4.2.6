@@ -1,0 +1,42 @@
+== Using transactions
+
+=== Transactions with connections
+
+You can execute transaction using SQL `BEGIN`/`COMMIT`/`ROLLBACK`, if you do so you must use
+a {@link io.vertx.sqlclient.SqlConnection} and manage it yourself.
+
+Or you can use the transaction API of {@link io.vertx.sqlclient.SqlConnection}:
+
+[source,$lang]
+----
+{@link examples.SqlClientExamples#transaction01(io.vertx.sqlclient.Pool)}
+----
+
+When the database server reports the current transaction is failed (e.g the infamous _current transaction is aborted, commands ignored until
+end of transaction block_), the transaction is rollbacked and the {@link io.vertx.sqlclient.Transaction#completion()} future
+is failed with a {@link io.vertx.sqlclient.TransactionRollbackException}:
+
+[source,$lang]
+----
+{@link examples.SqlClientExamples#transaction02(io.vertx.sqlclient.Transaction)}
+----
+
+=== Simplified transaction API
+
+When you use a pool, you can call {@link io.vertx.sqlclient.Pool#withTransaction} to pass it a function executed
+within a transaction.
+
+It borrows a connection from the pool, begins the transaction and calls the function with a client executing all
+operations in the scope of this transaction.
+
+The function must return a future of an arbitrary result:
+
+- when the future succeeds the client will commit the transaction
+- when the future fails the client will rollback the transaction
+
+After the transaction completes, the connection is returned to the pool and the overall result is provided.
+
+[source,$lang]
+----
+{@link examples.SqlClientExamples#transaction03(io.vertx.sqlclient.Pool)}
+----
