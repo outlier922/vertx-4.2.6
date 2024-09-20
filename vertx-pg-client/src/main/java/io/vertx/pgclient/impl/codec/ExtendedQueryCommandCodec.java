@@ -91,6 +91,6 @@ class ExtendedQueryCommandCodec<R, C extends ExtendedQueryCommand<R>> extends Qu
   }
 
   private boolean isTableSchemaErrorMessage(ErrorResponse errorResponse) {
-    return errorResponse.getMessage().matches(TABLE_SCHEMA_CHANGE_ERROR_MESSAGE_PATTERN) || errorResponse.getMessage().equals("cached plan must not change result type");
+    return errorResponse.getMessage().matches(TABLE_SCHEMA_CHANGE_ERROR_MESSAGE_PATTERN) || errorResponse.getMessage().equals("cached plan must not change result type") || errorResponse.getMessage().equals("已缓冲的计划不能改变结果类型");
   }
 }
